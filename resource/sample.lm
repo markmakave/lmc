@@ -1,0 +1,7 @@
+
+function entry {
+
+    var x: i32 = 5 + 2
+
+    ret x
+}
