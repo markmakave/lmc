@@ -1,14 +1,21 @@
 #pragma once
 
-#include <istream>
-#include <ostream>
+#include "source.hpp"
 
 namespace lmc {
 
 class lexer {
-public:
+    friend class token;
+    friend class iterator;
 
-    struct token {
+private:
+
+    class token {
+        friend class lexer;
+
+    protected:
+        source* _source;
+        size_t _begin, _end;
         enum type {
             eof = -1,
             unknown,
@@ -20,82 +27,95 @@ public:
             comment
         } type;
 
-        char lexem[64];
-        size_t length;
+        token(source& source) : _source(&source), type(unknown) {}
 
-        token() : type(unknown), length(0)
-        {}
-
-        // append character to token lexem
-        void append(char c) {
-            lexem[length++] = c;
+        void begin() {
+            _begin = _source->position();
         }
 
-        void append(const char* s, size_t size) {
-            for (size_t i = 0; i < size; ++i)
-                append(s[i]);
+        void end() {
+            _end = _source->position();
         }
 
-        // erase token lexem
-        void erase() {
-            length = 0;
-        }
-
-        friend std::ostream& operator<<(std::ostream& os, const token& t) {
-            switch (t.type) {
+        friend std::ostream& operator << (std::ostream& stream, enum type type) {
+            switch (type) {
             case type::eof:
-                os << "<eof>";
+                stream << "<eof>";
                 break;
             case type::unknown:
-                os << "<unknown>";
+                stream << "<unknown>";
                 break;
             case type::whitespace:
-                os << "<whitespace>";
+                stream << "<whitespace>";
                 break;
             case type::newline:
-                os << "<newline>";
+                stream << "<newline>";
+                break;
+            case type::integer:
+                stream << "<integer>";
+                break;
+            case type::identifier:
+                stream << "<identifier>";
+                break;
+            case type::string:
+                stream << "<string>";
+                break;
+            case type::comment:
+                stream << "<comment>";
                 break;
             default:
-                os << "<" << t.type << "> \"";
-                os.write(t.lexem, t.length);
-                os << "\"";
+                stream << "<unsupported>";
+                break;
+            }
+            return stream;
+        }
+
+        friend std::ostream& operator<<(std::ostream& stream, const token& token) {
+            stream << token.type;
+
+            switch (token.type) {
+            case type::eof:
+            case type::whitespace:
+            case type::newline:
+                break;
+            default:
+                {
+                    std::string lexem(token._source->begin() + token._begin, token._source->begin() + token._end);
+                    stream << ' ' << lexem;
+                }
             }
     
-            return os;
+            return stream;
         }
     };
 
-    struct iterator {
-        lexer& parent;
+    class iterator {
+        friend class lexer;
 
-        enum mode {
-            begin,
-            end
-        } mode;
+    public:
 
-        token& operator *() {
-            return parent.peek();
+        token& operator * () {
+            return t;
         }
 
-        token* operator ->() {
-            return &parent._last;
-        }
-
-        iterator& operator ++() {
-            parent.next();
+        iterator& operator ++ () {
+            t = parent.next();
             return *this;
         }
 
-        bool
-        operator == (const iterator& other) const {
-            return other.mode == mode::end && parent._last.type == token::eof;
+        bool operator != (const iterator& it) {
+            return t.type != token::eof;
         }
 
-        bool
-        operator != (const iterator& other) const {
-            return !(*this == other);
-        }
+    protected:
 
+        iterator(lexer& lexer, token token) : parent(lexer), t(token)
+        {} 
+
+    protected:
+
+        lexer& parent;
+        token t;       
     };
 
 public:
@@ -103,95 +123,81 @@ public:
     lexer(std::istream& source) : _source(source) {}
     ~lexer() {}
 
-    void lex(auto&& condition) {
-        while (condition(_source.peek()))
-        {
-            _last.append(_source.get());
-        }
-    }
-
-    token& next()
+    token next()
     {
-        _last.erase();
+        token t(_source);
+        t.begin();
 
-        switch (_source.peek())
-        {
-        case std::char_traits<char>::eof():
-            _last.type = token::eof;
-            break;
+        char c = _source.get();
+        if (_source.eof()) {
+            t.type = token::eof;
+        } else {
+            switch (c)
+            {
+            case ' ':
+            case '\t':
+            case '\r':
+                t.type = token::whitespace;
 
-        case ' ':
-        case '\t':
-        case '\r':
-            _last.type = token::whitespace;
-            lex([](char c) { return c == ' ' || c == '\t' || c == '\r'; });
-            break;
-
-        case '\n':
-            _last.type = token::newline;
-            lex([](char c) { return c == '\n'; });
-            break;
-
-        case '"':
-            _last.type = token::string;
-            _last.append(_source.get());
-            lex([escape = false](char c) mutable {
-                switch (c) {
-                case '\\':
-                    if (escape)
-                        escape = false;
-                    return true;
-                case '"':
-                    if (escape) {
-                        escape = false;
-                        return true;
-                    }
-                    else
-                        return false;
-                default:
-                    escape = false;
-                    return true;
+                c = _source.peek();
+                while (c == ' ' || c == '\t' || c == '\r') {
+                    _source.get();
+                    c = _source.peek();
                 }
-            });
-            _last.append('"');
-            break;
+                break;
 
-        case 'a'...'z':
-        case 'A'...'Z':
-        case '_':
-            _last.type = token::identifier;
-            lex([](char c) { return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '_' || (c > '0' && c <= '9'); });
-            break;
+            case '\n':
+                t.type = token::newline;
+                break;
 
-        default:
-            _last.type = token::unknown;
-            _last.append(_source.get());
-            break;
+            case '"':
+                t.type = token::string;
+                break;
+
+            case 'a'...'z':
+            case 'A'...'Z':
+            case '_':
+                t.type = token::identifier;
+
+                c = _source.peek();
+                while ((c >= '0' && c <= '9') || 
+                    (c >= 'a' && c <= 'z') ||
+                    (c >= 'A' && c <= 'Z') ||
+                    (c == '_')
+                ) {
+                    _source.get();
+                    c = _source.peek();
+                }
+                break;
+
+            default:
+                break;
+            }
         }
 
-        return _last;
+        t.end();
+
+        return t;
     }
 
-    token& peek()
-    {
-        auto backup = _source.tellg();
-        next();
-        _source.seekg(backup);
-        return _last;
-    }
+    // token peek()
+    // {
+    //     auto backup = _source.position();
+    //     next();
+    //     _source.seekg(backup);
+    // }
 
     iterator begin() {
-        return {*this, iterator::begin};
+        return { *this, next() };
     }
 
     iterator end() {
-        return {*this, iterator::end};
+        return { *this, {_source} };
     }
 
 protected:
-    std::istream& _source;
 
-    token _last;
+    lmc::source _source;
 };
 
 }
