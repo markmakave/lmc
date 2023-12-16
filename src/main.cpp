@@ -8,21 +8,18 @@
 #include "scope.hpp"
 
 int main(int argc, char **argv)
-// {
-//     // std::istream* source;
+{
+    std::istream* source;
 
-//     // if (argc > 1)
-//     //     source = new std::ifstream(argv[1]);
-//     // else
-//     //     source = &std::cin;
+    if (argc > 1)
+        source = new std::ifstream(argv[1]);
+    else
+        source = &std::cin;
 
-//     // if (source->bad())
-//     //     return 1;
+    lmc::lexer lexer(*source);
 
-//     // lmc::lexer lexer(*source);
-
-//     // for (auto& t : lexer)
-//     //     std::cout << t << std::endl;
+    for (auto& t : lexer)
+        std::cout << t << std::endl;
 
     return 0;
 }

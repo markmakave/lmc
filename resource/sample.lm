@@ -5,3 +5,5 @@ function entry
 
     ret x
 ]
+
+// some comment

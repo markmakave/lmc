@@ -24,6 +24,12 @@ private:
             integer,
             identifier,
             string,
+
+            addition,
+            subtraction,
+            division,
+            multiplication,
+
             comment
         } type;
 
@@ -134,39 +140,54 @@ public:
         } else {
             switch (c)
             {
+            // Whitespace
             case ' ':
             case '\t':
             case '\r':
                 t.type = token::whitespace;
-
-                c = _source.peek();
-                while (c == ' ' || c == '\t' || c == '\r') {
-                    _source.get();
-                    c = _source.peek();
-                }
+                for (
+                    c = _source.peek(); 
+                    (c == ' ' || c == '\t' || c == '\r') && !(_source.eof());
+                    _source.get(), c = _source.peek()
+                ) {}
                 break;
 
+            // Newline
             case '\n':
                 t.type = token::newline;
                 break;
 
+            // String
             case '"':
                 t.type = token::string;
                 break;
 
+            // Identifier
             case 'a'...'z':
             case 'A'...'Z':
             case '_':
                 t.type = token::identifier;
-
-                c = _source.peek();
-                while ((c >= '0' && c <= '9') || 
+                for (
+                    c = _source.peek();
+                    ((c >= '0' && c <= '9') || 
                     (c >= 'a' && c <= 'z') ||
                     (c >= 'A' && c <= 'Z') ||
-                    (c == '_')
-                ) {
-                    _source.get();
-                    c = _source.peek();
+                    (c == '_')) && !(_source.eof());
+                    _source.get(), c = _source.peek()
+                ) {}
+                break;
+
+            // Comment
+            case '/':
+                if (_source.peek() == '/') {
+                    t.type = token::comment;
+                    for (
+                        c = _source.peek();
+                        c != '\n' && !(_source.eof());
+                        _source.get(), c = _source.peek()
+                    ) {}
+                } else {
+                    t.type = token::division;
                 }
                 break;
 

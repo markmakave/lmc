@@ -9,31 +9,14 @@ namespace lmc {
 
 class parser {
 public:
-    
-    class expression {
-    public:
-        virtual ~expression() = default;
-    };
 
-    class variable : public expression {
-        scope _scope;
-        std::string_view _name;
-    };
+    parser(lexer& source) : _source(source) {}
 
-    class binary : public expression {
-        std::unique_ptr<expression> lhs, rhs;
-    };
-
-    class call : public expression {
-
-    };
-
-public:
-
-    parser() {}
+    // std::unique_ptr<statement> parse();
 
 protected:
 
+    lexer _source;
 };
 
 }
